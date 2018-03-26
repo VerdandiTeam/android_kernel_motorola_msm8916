@@ -42,6 +42,10 @@
 #include <linux/input/mt.h>
 #endif
 
+#ifdef CONFIG_TOUCHSCREEN_DOUBLETAP2WAKE
+#include <linux/input/doubletap2wake.h>
+#endif
+
 #define DRIVER_NAME "synaptics_dsx_i2c"
 #define INPUT_PHYS_NAME "synaptics_dsx_i2c/input0"
 #define TYPE_B_PROTOCOL
@@ -4234,24 +4238,34 @@ static int synaptics_dsx_panel_cb(struct notifier_block *nb,
 	struct fb_event *evdata = data;
 	struct synaptics_rmi4_data *rmi4_data =
 		container_of(nb, struct synaptics_rmi4_data, panel_nb);
-
-	if ((event == FB_EARLY_EVENT_BLANK || event == FB_EVENT_BLANK) &&
-			evdata && evdata->data && rmi4_data) {
-		int *blank = evdata->data;
-		pr_debug("fb notification: event = %lu blank = %d\n", event, *blank);
-		/* entering suspend upon early blank event */
-		/* to ensure shared power supply is still on */
-		/* for in-cell design touch solutions */
-		if (event == FB_EARLY_EVENT_BLANK) {
-			if (*blank != FB_BLANK_POWERDOWN)
-				return 0;
-			synaptics_dsx_display_off(&rmi4_data->i2c_client->dev);
-		} else if (*blank == FB_BLANK_UNBLANK ||
-			(*blank == FB_BLANK_VSYNC_SUSPEND &&
-			atomic_read(&rmi4_data->touch_stopped))) {
-			synaptics_dsx_display_on(&rmi4_data->i2c_client->dev);
+#ifdef CONFIG_TOUCHSCREEN_DOUBLETAP2WAKE
+	bool prevent_sleep = (dt2w_switch > 0);
+	if (prevent_sleep) {
+		pr_debug("suspend avoided!\n");
+		synaptics_dsx_enable_wakeup_source(rmi4_data, true);
+		return 0;
+	} else {
+#endif
+		if ((event == FB_EARLY_EVENT_BLANK || event == FB_EVENT_BLANK) &&
+				evdata && evdata->data && rmi4_data) {
+			int *blank = evdata->data;
+			pr_debug("fb notification: event = %lu blank = %d\n", event, *blank);
+			/* entering suspend upon early blank event */
+			/* to ensure shared power supply is still on */
+			/* for in-cell design touch solutions */
+			if (event == FB_EARLY_EVENT_BLANK) {
+				if (*blank != FB_BLANK_POWERDOWN)
+					return 0;
+				synaptics_dsx_display_off(&rmi4_data->i2c_client->dev);
+			} else if (*blank == FB_BLANK_UNBLANK ||
+				(*blank == FB_BLANK_VSYNC_SUSPEND &&
+				atomic_read(&rmi4_data->touch_stopped))) {
+				synaptics_dsx_display_on(&rmi4_data->i2c_client->dev);
+			}
 		}
+#ifdef CONFIG_TOUCHSCREEN_DOUBLETAP2WAKE
 	}
+#endif
 
 	return 0;
 }

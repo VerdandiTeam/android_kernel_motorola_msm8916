@@ -2787,7 +2787,7 @@ static long binder_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		if (ret < 0)
 			goto err;
 		if (uid_valid(binder_ns->context_mgr_uid)) {
-			if (!uid_eq(binder_ns->context_mgr_uid, curr_euid)) {
+			if (!uid_eq(binder_ns->context_mgr_uid, current->cred->euid)) {
 				pr_err("BINDER_SET_CONTEXT_MGR bad uid %d != %d\n",
 				       from_kuid(&init_user_ns, current->cred->euid),
 				       from_kuid(&init_user_ns, binder_ns->context_mgr_uid));
